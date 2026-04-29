@@ -1,0 +1,281 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+.wrap { padding: 1rem 0; font-family: var(--font-sans); }
+.section-label { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 8px; font-weight: 500; }
+.img-picker { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.img-btn { padding: 6px 12px; font-size: 12px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); cursor: pointer; background: var(--color-background-primary); color: var(--color-text-primary); }
+.img-btn.active { background: var(--color-background-info); color: var(--color-text-info); border-color: var(--color-border-info); }
+.editor-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.focal-container { position: relative; width: 100%; aspect-ratio: 4/3; border-radius: var(--border-radius-lg); overflow: hidden; border: 0.5px solid var(--color-border-secondary); cursor: crosshair; user-select: none; }
+.focal-canvas { width: 100%; height: 100%; display: block; }
+.focal-overlay { position: absolute; inset: 0; pointer-events: none; }
+.cross-h { position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.45); }
+.cross-v { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.45); }
+.focal-dot { position: absolute; width: 30px; height: 30px; border-radius: 50%; border: 2.5px solid white; background: rgba(255,255,255,0.2); transform: translate(-50%,-50%); box-shadow: 0 0 0 2px rgba(0,0,0,0.5); pointer-events: none; }
+.focal-dot::after { content:''; position:absolute; inset:6px; border-radius:50%; background:white; }
+.hint { font-size: 12px; color: var(--color-text-tertiary); margin-top: 6px; }
+.fp-val { font-size: 12px; color: var(--color-text-secondary); margin-top: 5px; }
+.reset-btn { margin-top: 7px; font-size: 12px; padding: 5px 12px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); cursor: pointer; background: transparent; color: var(--color-text-secondary); }
+.previews { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.preview-card { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
+.preview-label { font-size: 11px; color: var(--color-text-secondary); padding: 7px 10px 4px; font-weight: 500; }
+.preview-viewport { overflow: hidden; position: relative; }
+.preview-viewport canvas { display: block; width: 100%; height: 100%; }
+.divider { height: 0.5px; background: var(--color-border-tertiary); margin: 16px 0; }
+.full-row { display: flex; gap: 12px; align-items: flex-start; }
+.full-box { flex: 1; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
+.badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: var(--border-radius-md); background: var(--color-background-success); color: var(--color-text-success); margin-bottom: 6px; }
+</style>
+
+<div class="wrap">
+  <div>
+    <p class="section-label">Chọn ảnh mẫu</p>
+    <div class="img-picker">
+      <button class="img-btn active" data-idx="0">Cô dâu &amp; chú rể</button>
+      <button class="img-btn" data-idx="1">Gia đình</button>
+      <button class="img-btn" data-idx="2">Hoa cưới</button>
+    </div>
+  </div>
+
+  <div class="editor-row">
+    <div>
+      <p class="section-label">Kéo để đặt focal point</p>
+      <div class="focal-container" id="fc">
+        <canvas class="focal-canvas" id="mainCanvas"></canvas>
+        <div class="focal-overlay">
+          <div class="cross-h" id="crossH"></div>
+          <div class="cross-v" id="crossV"></div>
+          <div class="focal-dot" id="fDot"></div>
+        </div>
+      </div>
+      <p class="hint">Click hoặc kéo điểm trắng để đặt trung tâm ảnh</p>
+      <p class="fp-val" id="fpVal">Focal point: x=50%, y=50% (mặc định)</p>
+      <button class="reset-btn" id="resetBtn">Reset về mặc định (50%, 50%)</button>
+    </div>
+
+    <div>
+      <p class="section-label">Preview theo từng tỉ lệ</p>
+      <div class="previews">
+        <div class="preview-card">
+          <p class="preview-label">16 : 9</p>
+          <div class="preview-viewport" style="aspect-ratio:16/9"><canvas id="pv1"></canvas></div>
+        </div>
+        <div class="preview-card">
+          <p class="preview-label">1 : 1</p>
+          <div class="preview-viewport" style="aspect-ratio:1/1"><canvas id="pv2"></canvas></div>
+        </div>
+        <div class="preview-card">
+          <p class="preview-label">4 : 3</p>
+          <div class="preview-viewport" style="aspect-ratio:4/3"><canvas id="pv3"></canvas></div>
+        </div>
+        <div class="preview-card" style="grid-column:span 3">
+          <p class="preview-label">2 : 3 — portrait (avatar cặp đôi)</p>
+          <div style="display:grid;grid-template-columns:80px 1fr;gap:10px;padding:0 10px 10px">
+            <div class="preview-viewport" style="aspect-ratio:2/3"><canvas id="pv4"></canvas></div>
+            <p style="font-size:12px;color:var(--color-text-secondary);line-height:1.7;padding-top:4px">Focal point giúp đảm bảo khuôn mặt không bị cắt khi crop sang portrait.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <p class="section-label">Khi xem chi tiết — hiển thị full ảnh gốc</p>
+  <div class="full-row">
+    <div class="full-box"><canvas id="fullCanvas" style="width:100%;display:block"></canvas></div>
+    <div style="flex:1.5;font-size:13px;color:var(--color-text-secondary);line-height:1.8;padding-top:4px">
+      <span class="badge">object-fit: contain</span><br/>
+      Khi click xem chi tiết, toàn bộ ảnh gốc được hiển thị đầy đủ — không crop. Focal point chỉ áp dụng cho thumbnail ở mỗi section.
+    </div>
+  </div>
+</div>
+
+<script>
+const SCENES = [
+  // Scene 0: Đôi uyên ương — gradient hồng, 2 hình người + tim
+  (ctx, w, h) => {
+    const g = ctx.createLinearGradient(0,0,w,h);
+    g.addColorStop(0,'#f7c5d5'); g.addColorStop(1,'#fde8c8');
+    ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+    // background circles
+    ctx.fillStyle='rgba(255,255,255,0.25)'; ctx.beginPath(); ctx.arc(w*0.15,h*0.2,h*0.35,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,200,200,0.3)'; ctx.beginPath(); ctx.arc(w*0.85,h*0.8,h*0.28,0,Math.PI*2); ctx.fill();
+    // person left (bride)
+    ctx.fillStyle='#d4547a';
+    ctx.beginPath(); ctx.arc(w*0.35,h*0.3,h*0.1,0,Math.PI*2); ctx.fill(); // head
+    ctx.fillStyle='#e87fa0';
+    ctx.beginPath(); ctx.moveTo(w*0.25,h*0.42); ctx.quadraticCurveTo(w*0.35,h*0.8,w*0.45,h*0.42);
+    ctx.quadraticCurveTo(w*0.35,h*0.38,w*0.25,h*0.42); ctx.fill(); // dress
+    // person right (groom)
+    ctx.fillStyle='#5c4a7a';
+    ctx.beginPath(); ctx.arc(w*0.65,h*0.3,h*0.1,0,Math.PI*2); ctx.fill(); // head
+    ctx.fillStyle='#3d3060';
+    ctx.beginPath(); ctx.moveTo(w*0.55,h*0.42); ctx.lineTo(w*0.58,h*0.75); ctx.lineTo(w*0.72,h*0.75); ctx.lineTo(w*0.75,h*0.42); ctx.closePath(); ctx.fill(); // suit
+    // heart in center
+    ctx.fillStyle='#e84393';
+    const hx=w*0.5, hy=h*0.5, hs=h*0.07;
+    ctx.beginPath();
+    ctx.moveTo(hx, hy+hs*0.6);
+    ctx.bezierCurveTo(hx-hs*1.2,hy-hs*0.4, hx-hs*1.2,hy-hs*1.2, hx,hy-hs*0.5);
+    ctx.bezierCurveTo(hx+hs*1.2,hy-hs*1.2, hx+hs*1.2,hy-hs*0.4, hx,hy+hs*0.6);
+    ctx.fill();
+    // text
+    ctx.fillStyle='#7a2d4f'; ctx.font=`bold ${h*0.07}px sans-serif`; ctx.textAlign='center';
+    ctx.fillText('Nam & Linh', w*0.5, h*0.88);
+  },
+  // Scene 1: Gia đình — 4 người
+  (ctx, w, h) => {
+    const g = ctx.createLinearGradient(0,0,w,h);
+    g.addColorStop(0,'#dbeafe'); g.addColorStop(1,'#bfdbfe');
+    ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+    // sun
+    ctx.fillStyle='#fbbf24'; ctx.beginPath(); ctx.arc(w*0.85,h*0.15,h*0.1,0,Math.PI*2); ctx.fill();
+    // ground
+    ctx.fillStyle='#6ee7b7'; ctx.fillRect(0,h*0.72,w,h*0.28);
+    // house
+    ctx.fillStyle='#f3f4f6'; ctx.fillRect(w*0.05,h*0.4,w*0.3,h*0.32);
+    ctx.fillStyle='#ef4444'; ctx.beginPath(); ctx.moveTo(w*0.02,h*0.4); ctx.lineTo(w*0.2,h*0.22); ctx.lineTo(w*0.38,h*0.4); ctx.fill();
+    // 4 people
+    const people=[{x:0.5,color:'#6366f1',h2:0.12},{x:0.62,color:'#8b5cf6',h2:0.1},{x:0.73,color:'#f97316',h2:0.08},{x:0.82,color:'#ec4899',h2:0.07}];
+    people.forEach(p=>{
+      ctx.fillStyle=p.color;
+      ctx.beginPath(); ctx.arc(w*p.x,h*(0.72-p.h2-0.05),h*0.045,0,Math.PI*2); ctx.fill();
+      ctx.fillRect(w*p.x-w*0.018, h*(0.72-p.h2), w*0.036, h*p.h2);
+    });
+    ctx.fillStyle='#1e3a5f'; ctx.font=`bold ${h*0.06}px sans-serif`; ctx.textAlign='center';
+    ctx.fillText('Gia đình hạnh phúc', w*0.5, h*0.92);
+  },
+  // Scene 2: Hoa cưới
+  (ctx, w, h) => {
+    const g = ctx.createLinearGradient(0,0,w,h);
+    g.addColorStop(0,'#fdf2f8'); g.addColorStop(1,'#fce7f3');
+    ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+    // leaves
+    ctx.fillStyle='#86efac';
+    [[0.2,0.6],[0.8,0.55],[0.5,0.75],[0.15,0.45],[0.85,0.7]].forEach(([lx,ly])=>{
+      ctx.save(); ctx.translate(w*lx,h*ly); ctx.rotate(Math.random()*1-0.5);
+      ctx.beginPath(); ctx.ellipse(0,0,w*0.06,h*0.03,0,0,Math.PI*2); ctx.fill(); ctx.restore();
+    });
+    // flowers
+    const flowers=[{x:0.35,y:0.38,r:0.09,c:'#f9a8d4'},{x:0.65,y:0.35,r:0.08,c:'#fca5a5'},{x:0.5,y:0.52,r:0.1,c:'#fbcfe8'},{x:0.25,y:0.55,r:0.07,c:'#f0abfc'},{x:0.75,y:0.55,r:0.07,c:'#c4b5fd'}];
+    flowers.forEach(f=>{
+      for(let i=0;i<6;i++){
+        ctx.fillStyle=f.c;
+        ctx.beginPath();
+        const angle=i*Math.PI/3, px=w*f.x+Math.cos(angle)*h*f.r*0.7, py=h*f.y+Math.sin(angle)*h*f.r*0.7;
+        ctx.ellipse(px,py,h*f.r*0.45,h*f.r*0.25,angle,0,Math.PI*2);
+        ctx.fill();
+      }
+      ctx.fillStyle='#fef08a'; ctx.beginPath(); ctx.arc(w*f.x,h*f.y,h*f.r*0.28,0,Math.PI*2); ctx.fill();
+    });
+    ctx.fillStyle='#9d174d'; ctx.font=`bold ${h*0.065}px sans-serif`; ctx.textAlign='center';
+    ctx.fillText('Hoa cưới', w*0.5, h*0.88);
+  }
+];
+
+let fx=0.5, fy=0.5, dragging=false, curScene=0;
+let offscreen = null;
+
+const fc = document.getElementById('fc');
+const mainCanvas = document.getElementById('mainCanvas');
+const fDot = document.getElementById('fDot');
+const crossH = document.getElementById('crossH');
+const crossV = document.getElementById('crossV');
+const fpVal = document.getElementById('fpVal');
+const pvs = [
+  {canvas:document.getElementById('pv1'), ratio:16/9},
+  {canvas:document.getElementById('pv2'), ratio:1/1},
+  {canvas:document.getElementById('pv3'), ratio:4/3},
+  {canvas:document.getElementById('pv4'), ratio:2/3},
+];
+const fullCanvas = document.getElementById('fullCanvas');
+
+function drawScene(canvas, scene, w, h) {
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  scene(ctx, w, h);
+}
+
+function buildOffscreen(idx) {
+  offscreen = document.createElement('canvas');
+  offscreen.width = 800; offscreen.height = 600;
+  const ctx = offscreen.getContext('2d');
+  SCENES[idx](ctx, 800, 600);
+}
+
+function drawCropped(canvas, ratio) {
+  const srcW = offscreen.width, srcH = offscreen.height;
+  const srcRatio = srcW / srcH;
+  let cropW, cropH, cropX, cropY;
+  if (ratio > srcRatio) {
+    cropW = srcW; cropH = srcW / ratio;
+    cropX = 0;
+    cropY = Math.max(0, Math.min(fy * srcH - cropH / 2, srcH - cropH));
+  } else {
+    cropH = srcH; cropW = srcH * ratio;
+    cropY = 0;
+    cropX = Math.max(0, Math.min(fx * srcW - cropW / 2, srcW - cropW));
+  }
+  const dw = Math.round(cropW); const dh = Math.round(cropH);
+  canvas.width = dw; canvas.height = dh;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(offscreen, cropX, cropY, cropW, cropH, 0, 0, dw, dh);
+}
+
+function renderAll() {
+  // main editor canvas
+  mainCanvas.width = 400; mainCanvas.height = 300;
+  const mctx = mainCanvas.getContext('2d');
+  mctx.drawImage(offscreen, 0, 0, 400, 300);
+
+  // previews
+  pvs.forEach(({canvas, ratio}) => drawCropped(canvas, ratio));
+
+  // full
+  fullCanvas.width = offscreen.width; fullCanvas.height = offscreen.height;
+  const fctx = fullCanvas.getContext('2d');
+  fctx.drawImage(offscreen, 0, 0);
+
+  updateOverlay();
+}
+
+function updateOverlay() {
+  fDot.style.left = `${fx*100}%`;
+  fDot.style.top = `${fy*100}%`;
+  crossH.style.top = `${fy*100}%`;
+  crossV.style.left = `${fx*100}%`;
+  const isDefault = Math.abs(fx-0.5)<0.005 && Math.abs(fy-0.5)<0.005;
+  fpVal.textContent = `Focal point: x=${Math.round(fx*100)}%, y=${Math.round(fy*100)}%${isDefault?' (mặc định)':''}`;
+}
+
+function getPos(e) {
+  const rect = fc.getBoundingClientRect();
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  return {
+    x: Math.max(0, Math.min(1, (cx - rect.left) / rect.width)),
+    y: Math.max(0, Math.min(1, (cy - rect.top) / rect.height))
+  };
+}
+
+fc.addEventListener('mousedown', e => { dragging=true; const p=getPos(e); fx=p.x; fy=p.y; renderAll(); });
+document.addEventListener('mousemove', e => { if(!dragging) return; const p=getPos(e); fx=p.x; fy=p.y; renderAll(); });
+document.addEventListener('mouseup', () => dragging=false);
+fc.addEventListener('touchstart', e => { dragging=true; const p=getPos(e); fx=p.x; fy=p.y; renderAll(); }, {passive:true});
+document.addEventListener('touchmove', e => { if(!dragging) return; const p=getPos(e); fx=p.x; fy=p.y; renderAll(); }, {passive:true});
+document.addEventListener('touchend', () => dragging=false);
+document.getElementById('resetBtn').addEventListener('click', () => { fx=0.5; fy=0.5; renderAll(); });
+document.querySelectorAll('.img-btn').forEach((btn,i) => {
+  btn.addEventListener('click', () => {
+    curScene=i;
+    document.querySelectorAll('.img-btn').forEach((b,j) => b.classList.toggle('active', j===i));
+    buildOffscreen(i);
+    renderAll();
+  });
+});
+
+buildOffscreen(0);
+renderAll();
+</script>
